@@ -9,7 +9,7 @@ AI-Powered Infrastructure Lifecycle Platform — generates Azure landing zones t
 ## Prerequisites
 
 - Linux (Ubuntu 22.04+ recommended)
-- [uv](https://docs.astral.sh/uv/) package manager
+- [uv](https://docs.astral.sh/uv/) package manager (installed by setup.sh)
 - [Anthropic API key](https://console.anthropic.com/settings/keys)
 - [OpenAI API key](https://platform.openai.com/api-keys)
 
@@ -37,6 +37,27 @@ chmod +x setup.sh
 ./setup.sh status                                   # Project info
 ```
 
+## Environment Variables
+
+API keys are stored in `~/terraforge-ai/.env` (created during `./setup.sh install`).
+
+This file is **gitignored** and will never be pushed to GitHub.
+
+```bash
+# ~/terraforge-ai/.env
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+OPENAI_API_KEY=sk-your-key-here
+```
+
+To edit your keys later:
+```bash
+nano ~/terraforge-ai/.env
+```
+
+To get your keys:
+- **Anthropic:** https://console.anthropic.com/settings/keys
+- **OpenAI:** https://platform.openai.com/api-keys
+
 ## Your AI Team
 
 | Agent | Role | LLM |
@@ -53,16 +74,16 @@ chmod +x setup.sh
 
 | Command | Agents | Purpose |
 |---|---|---|
-| `run review` | All 7 | Full product validation |
-| `run build` | CTO + Engineer + Security | Design, code, review |
-| `run plan` | PM + CTO | Sprint planning |
-| `run business` | Sales + Marketing | Market analysis + content |
+| `./setup.sh run review` | All 7 | Full product validation from every perspective |
+| `./setup.sh run build "desc"` | CTO + Engineer + Security | Design architecture, write code, security review |
+| `./setup.sh run plan "status"` | PM + CTO | Sprint planning and technical validation |
+| `./setup.sh run business "q"` | Sales + Marketing | Market analysis, pricing, content creation |
 
 ## Project Structure
 
 ```
-terraforge-ai/
-├── setup.sh                       ← Setup + run script
+~/terraforge-ai/
+├── setup.sh                       ← Setup + run + push/pull script
 ├── .env                           ← API keys (NOT in git)
 ├── .gitignore                     ← Keeps secrets out of git
 ├── pyproject.toml                 ← Python/uv project config
@@ -75,6 +96,21 @@ terraforge-ai/
     └── main.py                    ← Entry point
 ```
 
+## All Commands
+
+```bash
+./setup.sh install                 # First-time full setup
+./setup.sh update                  # Pull latest + upgrade deps
+./setup.sh run review              # All 7 agents validate product
+./setup.sh run build "description" # CTO + Engineer + Security write code
+./setup.sh run plan "status"       # PM + CTO plan next sprint
+./setup.sh run business "question" # Sales + Marketing analyze market
+./setup.sh push "commit message"   # Git add + commit + push
+./setup.sh pull                    # Git pull latest
+./setup.sh status                  # Show project info
+./setup.sh help                    # Show all commands
+```
+
 ## Cost Per Run
 
 | Crew | Agents | Est. Cost |
@@ -84,15 +120,18 @@ terraforge-ai/
 | plan | 2 | $0.50-1 |
 | business | 2 | $0.50-1 |
 
+Monthly estimate (active development): **$50-150/month**
+
 ## Updating
 
 ```bash
-./setup.sh update    # Pulls latest code + upgrades CrewAI
+./setup.sh update    # Pulls latest code + upgrades CrewAI via uv
 ```
 
 ## Tech Stack
 
-- **Package Manager:** [uv](https://docs.astral.sh/uv/) (by Astral)
+- **Package Manager:** [uv](https://docs.astral.sh/uv/) by Astral (replaces pip/venv)
 - **AI Framework:** [CrewAI](https://docs.crewai.com/)
 - **LLMs:** Claude Sonnet 4 (Anthropic) + GPT-4o (OpenAI)
-- **Hosting:** Azure Linux VM
+- **Hosting:** Azure Linux VM (agenticai-lnx)
+- **Repo:** [github.com/bedairahmed/ai-project](https://github.com/bedairahmed/ai-project)

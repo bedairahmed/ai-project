@@ -1,0 +1,50 @@
+architecture_review:
+  description: >
+    Review TerraForge AI architecture. Provide: 1) Mermaid diagram
+    2) Tech recommendations with versions 3) Top 3 risks 4) Missing
+    components. Context: {context}
+  expected_output: "Architecture assessment with diagram, tech recs, risks, gaps"
+  agent: cto
+
+write_code:
+  description: >
+    Write production code for TerraForge AI. Complete files with paths,
+    all imports, comments. Requirement: {context}
+  expected_output: "Complete code files with paths, deps, env vars, next steps"
+  agent: engineer
+
+design_module:
+  description: >
+    Design Terraform module for: {context}
+    Include main.tf, variables.tf, outputs.tf, usage example.
+    Checkov-compliant. Microsoft CAF naming.
+  expected_output: "Complete Terraform module with all files and usage example"
+  agent: cloud_architect
+
+security_review:
+  description: >
+    Security review: {context}
+    Classify CRITICAL/HIGH/MEDIUM/LOW with CWE refs. Fix code for all.
+  expected_output: "Classified findings with CWE references and fix code"
+  agent: security_lead
+
+sprint_planning:
+  description: >
+    Plan next sprint. Status: {context}
+    Max 20hrs. Tasks 1-4hrs. Clear done criteria. One visible deliverable.
+  expected_output: "Sprint plan with tasks, estimates, deps, done criteria"
+  agent: pm
+
+market_analysis:
+  description: >
+    Analyze market viability: {context}
+    TAM/SAM/SOM, competitors, pricing, revenue projections.
+  expected_output: "Market analysis with sizing, competitors, pricing, projections"
+  agent: sales_business
+
+create_content:
+  description: >
+    Create marketing content: {context}
+    ACTUAL content ready to publish. Target: cloud architects, DevOps.
+  expected_output: "Complete publish-ready content piece"
+  agent: marketing

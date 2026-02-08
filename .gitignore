@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# uv
+.python-version
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CrewAI
+*.log
+output/
+logs/
+
+# Node (future TerraForge portal)
+node_modules/
+.next/

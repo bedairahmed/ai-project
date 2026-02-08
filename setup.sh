@@ -601,7 +601,7 @@ run)
     cd "$DIR"
     export PATH="$HOME/.local/bin:$PATH"
     shift
-    PYTHONPATH="$DIR/src" uv run python -m terraforge_team.main "$@" 2>/dev/null \
+    source "$DIR/.venv/bin/activate" && PYTHONPATH="$DIR/src" python -m terraforge_team.main "$@" 2>/dev/null \
         || PYTHONPATH="$DIR/src" python3 -m terraforge_team.main "$@"
     ;;
 

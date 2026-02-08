@@ -18,6 +18,16 @@ REPO="git@github.com:bedairahmed/ai-project.git"
 DIR="$HOME/terraforge-ai"
 CMD="${1:-help}"
 
+# Always ensure uv is in PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Activate .venv if it exists
+activate_venv() {
+    if [ -f "$DIR/.venv/bin/activate" ]; then
+        source "$DIR/.venv/bin/activate"
+    fi
+}
+
 case "$CMD" in
 #---------------------------------------------------------------
 help)
@@ -34,6 +44,7 @@ help)
     echo "  ./setup.sh push \"message\"             Commit + push to GitHub"
     echo "  ./setup.sh pull                       Pull latest from GitHub"
     echo "  ./setup.sh status                     Show project info"
+    echo "  ./setup.sh activate                   Print venv activation command"
     echo ""
     ;;
 
@@ -57,27 +68,20 @@ install)
     if ! command -v uv &>/dev/null; then
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
-        # Add to bashrc so it persists
-        grep -q 'astral' ~/.bashrc 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
     fi
+    # Persist uv in PATH
+    grep -q '.local/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
     echo "  ✓ uv $(uv --version 2>/dev/null || echo 'installed')"
 
-    # 3 Install CrewAI CLI
-    echo -e "${GREEN}[3/10] Installing CrewAI...${NC}"
-    uv tool install crewai 2>/dev/null || uv tool upgrade crewai 2>/dev/null || true
-    uv tool update-shell 2>/dev/null || true
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "  ✓ CrewAI CLI installed"
-
-    # 4 Git config
-    echo -e "${GREEN}[4/10] Git config...${NC}"
+    # 3 Git config
+    echo -e "${GREEN}[3/10] Git config...${NC}"
     git config --global user.name "bedairahmed"
     git config --global user.email "abedair@gmail.com"
     git config --global init.defaultBranch main
     echo "  ✓ Done"
 
-    # 5 SSH key
-    echo -e "${GREEN}[5/10] SSH key for GitHub...${NC}"
+    # 4 SSH key
+    echo -e "${GREEN}[4/10] SSH key for GitHub...${NC}"
     if [ ! -f ~/.ssh/id_ed25519 ]; then
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
         ssh-keygen -t ed25519 -C "abedair@gmail.com" -f ~/.ssh/id_ed25519 -N ""
@@ -101,8 +105,8 @@ install)
         echo "  ✓ Key exists"
     fi
 
-    # 6 .gitignore FIRST
-    echo -e "${GREEN}[6/10] Creating .gitignore...${NC}"
+    # 5 .gitignore
+    echo -e "${GREEN}[5/10] Creating .gitignore...${NC}"
     mkdir -p "$DIR"
     cat > "$DIR/.gitignore" << 'GIEOF'
 # Secrets
@@ -144,8 +148,8 @@ node_modules/
 GIEOF
     echo "  ✓ Done"
 
-    # 7 Clone or init repo
-    echo -e "${GREEN}[7/10] GitHub repository...${NC}"
+    # 6 Clone or init repo
+    echo -e "${GREEN}[6/10] GitHub repository...${NC}"
     if [ -d "$DIR/.git" ]; then
         cd "$DIR"
         git remote set-url origin "$REPO" 2>/dev/null || true
@@ -167,8 +171,8 @@ GIEOF
         echo "  ✓ Done"
     fi
 
-    # 8 API Keys
-    echo -e "${GREEN}[8/10] API keys...${NC}"
+    # 7 API Keys
+    echo -e "${GREEN}[7/10] API keys...${NC}"
     if [ ! -f "$DIR/.env" ]; then
         echo ""
         echo -e "${YELLOW}  Get Anthropic key: https://console.anthropic.com/settings/keys${NC}"
@@ -184,14 +188,11 @@ EOF
         echo "  ✓ .env exists"
     fi
 
-    # 9 Create CrewAI project with uv
-    echo -e "${GREEN}[9/10] Creating CrewAI project...${NC}"
+    # 8 Create venv + install CrewAI with all providers
+    echo -e "${GREEN}[8/10] Python environment + CrewAI...${NC}"
     cd "$DIR"
 
-    # Create project structure
-    mkdir -p src/terraforge_team/config
-
-    # pyproject.toml (uv-compatible)
+    # pyproject.toml
     cat > pyproject.toml << 'PYEOF'
 [project]
 name = "terraforge-team"
@@ -199,17 +200,26 @@ version = "0.1.0"
 description = "TerraForge AI - Agent Development Team"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "crewai[tools]>=0.100.0",
+    "crewai[tools,anthropic]>=1.0.0",
 ]
 
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.uv]
-dev-dependencies = []
+[dependency-groups]
+dev = []
 PYEOF
 
+    # Create venv and install
+    uv venv --quiet 2>/dev/null || uv venv
+    source .venv/bin/activate
+    uv pip install "crewai[tools,anthropic]" --quiet
+    echo "  ✓ CrewAI + Anthropic provider installed in .venv"
+
+    # 9 Project files
+    echo -e "${GREEN}[9/10] Creating project files...${NC}"
+    mkdir -p src/terraforge_team/config
     touch src/__init__.py
     touch src/terraforge_team/__init__.py
 
@@ -426,6 +436,9 @@ CEOF
     cat > src/terraforge_team/main.py << 'MEOF'
 #!/usr/bin/env python
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 from terraforge_team.crew import TerraforgeTeam
 
 def run():
@@ -457,11 +470,7 @@ if __name__ == "__main__":
     run()
 MEOF
 
-    # Install deps with uv
-    echo "  Installing dependencies with uv..."
-    cd "$DIR"
-    uv sync 2>/dev/null || uv pip install -r pyproject.toml 2>/dev/null || pip install crewai[tools] 2>/dev/null
-    echo "  ✓ All project files created and dependencies installed"
+    echo "  ✓ All project files created"
 
     # 10 README + Push
     echo -e "${GREEN}[10/10] README + push to GitHub...${NC}"
@@ -477,34 +486,100 @@ AI-Powered Infrastructure Lifecycle Platform — generates Azure landing zones t
 
 ## Prerequisites
 
-- Linux (Ubuntu 22.04+ recommended)
-- [uv](https://docs.astral.sh/uv/) package manager
+- Linux (Ubuntu 22.04+)
 - [Anthropic API key](https://console.anthropic.com/settings/keys)
 - [OpenAI API key](https://platform.openai.com/api-keys)
 
-## Quick Start
+Everything else (uv, CrewAI, Python venv) is installed automatically by `setup.sh`.
+
+## First Time Setup
 
 ```bash
-# Clone the repo
 git clone git@github.com:bedairahmed/ai-project.git ~/terraforge-ai
 cd ~/terraforge-ai
-
-# Run full setup (installs uv, CrewAI, SSH key, API keys, everything)
 chmod +x setup.sh
 ./setup.sh install
-
-# Run your AI team
-./setup.sh run review                              # All 7 agents validate product
-./setup.sh run build "write the auth middleware"    # CTO + Engineer + Security
-./setup.sh run plan "just finished project setup"   # PM + CTO plan sprint
-./setup.sh run business "validate $199 pricing"     # Sales + Marketing
-
-# Git operations
-./setup.sh push "added new feature"                 # Commit + push
-./setup.sh pull                                     # Pull latest
-./setup.sh update                                   # Pull + update deps
-./setup.sh status                                   # Project info
 ```
+
+The install script does everything:
+1. Installs system dependencies
+2. Installs [uv](https://docs.astral.sh/uv/) package manager
+3. Configures Git + generates SSH key for GitHub
+4. Creates `.gitignore` (keeps secrets out of git)
+5. Clones/initializes the GitHub repo
+6. Asks for API keys → saves to `.env` (gitignored)
+7. Creates Python `.venv` with uv
+8. Installs CrewAI + Anthropic provider
+9. Creates all agent/task/crew files
+10. Pushes to GitHub
+
+## Run Your AI Team
+
+```bash
+# All 7 agents validate the product
+./setup.sh run review
+
+# CTO + Engineer + Security write code
+./setup.sh run build "write the auth middleware"
+
+# PM + CTO plan sprint
+./setup.sh run plan "just finished project setup"
+
+# Sales + Marketing analyze market
+./setup.sh run business "validate $199 pricing"
+```
+
+## Git Operations
+
+```bash
+./setup.sh push "added new feature"    # Commit + push
+./setup.sh pull                        # Pull latest
+./setup.sh update                      # Pull + upgrade deps
+./setup.sh status                      # Project info
+```
+
+## Manual Activation (if needed)
+
+If you open a new terminal and need to work manually:
+
+```bash
+# 1. Add uv to PATH (needed once per terminal session)
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. Activate the Python virtual environment
+cd ~/terraforge-ai
+source .venv/bin/activate
+
+# 3. Run agents manually
+PYTHONPATH=src python -m terraforge_team.main review
+PYTHONPATH=src python -m terraforge_team.main build "your task here"
+```
+
+Or add this to your `~/.bashrc` so it's always ready:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+echo 'alias tf="cd ~/terraforge-ai && source .venv/bin/activate"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Then just type `tf` to activate everything, then `./setup.sh run review`.
+
+## Environment Variables
+
+API keys are stored in `~/terraforge-ai/.env` — this file is **gitignored**.
+
+```bash
+# View current keys
+cat .env
+
+# Edit keys
+nano .env
+```
+
+Get your keys:
+- **Anthropic:** https://console.anthropic.com/settings/keys
+- **OpenAI:** https://platform.openai.com/api-keys
 
 ## Your AI Team
 
@@ -518,23 +593,25 @@ chmod +x setup.sh
 | **Sales/Business** | Market analysis, pricing, competitors | GPT-4o |
 | **Marketing** | Positioning, content, launch strategy | GPT-4o |
 
-## Crews (Agent Combinations)
+## Crews
 
 | Command | Agents | Purpose |
 |---|---|---|
 | `run review` | All 7 | Full product validation |
-| `run build` | CTO + Engineer + Security | Design, code, review |
+| `run build` | CTO + Engineer + Security | Design, code, security review |
 | `run plan` | PM + CTO | Sprint planning |
-| `run business` | Sales + Marketing | Market analysis + content |
+| `run business` | Sales + Marketing | Market + content |
 
 ## Project Structure
 
 ```
-terraforge-ai/
-├── setup.sh                       ← Setup + run script
+~/terraforge-ai/
+├── setup.sh                       ← Setup/run/push/pull (this script)
 ├── .env                           ← API keys (NOT in git)
 ├── .gitignore                     ← Keeps secrets out of git
-├── pyproject.toml                 ← Python/uv project config
+├── .venv/                         ← Python virtual env (NOT in git)
+├── pyproject.toml                 ← Python/uv config
+├── uv.lock                        ← Dependency lock file
 ├── README.md                      ← This file
 └── src/terraforge_team/
     ├── config/
@@ -542,6 +619,32 @@ terraforge-ai/
     │   └── tasks.yaml             ← 7 task templates
     ├── crew.py                    ← 4 crew configurations
     └── main.py                    ← Entry point
+```
+
+## Troubleshooting
+
+**`uv: command not found`**
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**`ModuleNotFoundError: No module named 'crewai'`**
+```bash
+cd ~/terraforge-ai
+source .venv/bin/activate
+uv pip install "crewai[tools,anthropic]"
+```
+
+**`Permission denied (publickey)` on git push**
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+ssh -T git@github.com    # Should say "Hi bedairahmed!"
+```
+
+**API key errors**
+```bash
+nano ~/terraforge-ai/.env    # Check keys are correct
 ```
 
 ## Cost Per Run
@@ -553,33 +656,37 @@ terraforge-ai/
 | plan | 2 | $0.50-1 |
 | business | 2 | $0.50-1 |
 
-## Updating
-
-```bash
-./setup.sh update    # Pulls latest code + upgrades CrewAI
-```
-
 ## Tech Stack
 
-- **Package Manager:** [uv](https://docs.astral.sh/uv/) (by Astral)
-- **AI Framework:** [CrewAI](https://docs.crewai.com/)
+- **Package Manager:** [uv](https://docs.astral.sh/uv/) by Astral
+- **AI Framework:** [CrewAI](https://docs.crewai.com/) v1.9+
 - **LLMs:** Claude Sonnet 4 (Anthropic) + GPT-4o (OpenAI)
 - **Hosting:** Azure Linux VM
+- **Repo:** [github.com/bedairahmed/ai-project](https://github.com/bedairahmed/ai-project)
 REOF
 
     cd "$DIR"
     git add .
-    git commit -m "Initial TerraForge AI agent team (uv + CrewAI)" 2>/dev/null || echo "  (nothing new to commit)"
+    git commit -m "Setup with uv, CrewAI, all fixes applied" 2>/dev/null || echo "  (nothing new)"
     git branch -M main
     git push -u origin main 2>/dev/null && echo "  ✓ Pushed to GitHub" \
         || echo -e "${YELLOW}  ⚠ Push failed — run: ./setup.sh push \"initial\"${NC}"
+
+    # Add bash aliases
+    grep -q 'alias tf=' ~/.bashrc 2>/dev/null || {
+        echo '' >> ~/.bashrc
+        echo '# TerraForge AI shortcuts' >> ~/.bashrc
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+        echo 'alias tf="cd ~/terraforge-ai && source .venv/bin/activate"' >> ~/.bashrc
+    }
 
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  ✓ Installation Complete!                ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
     echo ""
-    echo "  Run your team:  ./setup.sh run review"
+    echo "  Run your team:    ./setup.sh run review"
+    echo "  Quick activate:   source ~/.bashrc && tf"
     echo ""
     ;;
 
@@ -588,10 +695,10 @@ update)
 #---------------------------------------------------------------
     echo -e "${GREEN}Updating TerraForge AI...${NC}"
     cd "$DIR"
-    git pull origin main 2>/dev/null || true
     export PATH="$HOME/.local/bin:$PATH"
-    uv tool upgrade crewai 2>/dev/null || true
-    uv sync 2>/dev/null || true
+    git pull origin main 2>/dev/null || true
+    source .venv/bin/activate
+    uv pip install --upgrade "crewai[tools,anthropic]" --quiet
     echo -e "${GREEN}✓ Updated${NC}"
     ;;
 
@@ -600,9 +707,9 @@ run)
 #---------------------------------------------------------------
     cd "$DIR"
     export PATH="$HOME/.local/bin:$PATH"
+    source .venv/bin/activate
     shift
-    source "$DIR/.venv/bin/activate" && PYTHONPATH="$DIR/src" python -m terraforge_team.main "$@" 2>/dev/null \
-        || PYTHONPATH="$DIR/src" python3 -m terraforge_team.main "$@"
+    PYTHONPATH="$DIR/src" python -m terraforge_team.main "$@"
     ;;
 
 #---------------------------------------------------------------
@@ -611,6 +718,8 @@ push)
     cd "$DIR"
     shift
     MSG="${*:-update}"
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
     git add .
     git commit -m "$MSG"
     git push origin main
@@ -621,6 +730,8 @@ push)
 pull)
 #---------------------------------------------------------------
     cd "$DIR"
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
     git pull origin main
     echo -e "${GREEN}✓ Pulled latest${NC}"
     ;;
@@ -629,20 +740,39 @@ pull)
 status)
 #---------------------------------------------------------------
     cd "$DIR"
+    export PATH="$HOME/.local/bin:$PATH"
     echo ""
     echo -e "${BLUE}Project:${NC}  $DIR"
     echo -e "${BLUE}Remote:${NC}   $(git remote get-url origin 2>/dev/null || echo 'not set')"
     echo -e "${BLUE}Branch:${NC}   $(git branch --show-current 2>/dev/null || echo 'unknown')"
     echo ""
     echo -e "${BLUE}Files:${NC}"
-    find src -type f \( -name "*.py" -o -name "*.yaml" \) | sort
+    find src -type f \( -name "*.py" -o -name "*.yaml" \) 2>/dev/null | sort
     echo ""
     echo -e "${BLUE}Git:${NC}"
     git status --short
     echo ""
-    echo -e "${BLUE}uv:${NC}       $(uv --version 2>/dev/null || echo 'not installed')"
-    echo -e "${BLUE}CrewAI:${NC}   $(crewai version 2>/dev/null || echo 'not found')"
+    echo -e "${BLUE}uv:${NC}       $(uv --version 2>/dev/null || echo 'not found — run: export PATH=\$HOME/.local/bin:\$PATH')"
     echo -e "${BLUE}Python:${NC}   $(python3 --version 2>/dev/null)"
+    echo -e "${BLUE}.venv:${NC}    $([ -d .venv ] && echo 'exists' || echo 'missing — run: ./setup.sh install')"
+    echo -e "${BLUE}.env:${NC}     $([ -f .env ] && echo 'exists' || echo 'missing — run: ./setup.sh install')"
+    echo ""
+    ;;
+
+#---------------------------------------------------------------
+activate)
+#---------------------------------------------------------------
+    echo ""
+    echo "Run these commands to activate manually:"
+    echo ""
+    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo "  cd ~/terraforge-ai"
+    echo "  source .venv/bin/activate"
+    echo ""
+    echo "Or add shortcut to bashrc (one time):"
+    echo "  echo 'alias tf=\"cd ~/terraforge-ai && source .venv/bin/activate\"' >> ~/.bashrc"
+    echo "  source ~/.bashrc"
+    echo "  tf"
     echo ""
     ;;
 
